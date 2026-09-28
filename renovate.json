@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "matchPackageNames": ["postgres", "/postgresql$/"],
+      "allowedVersions": "<19"
+    },
+    {
+      "matchPackageNames": ["valkey/valkey", "/valkey$/"],
+      "allowedVersions": "<9.2"
+    },
+    {
+      "matchPackageNames": ["golang", "go"],
+      "allowedVersions": "<1.27"
+    }
+  ]
+}
