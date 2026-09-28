@@ -56,7 +56,7 @@ valkey:
   enabled: true
   image:
     repository: valkey/valkey
-    tag: "9.1-alpine"
+    tag: "9.1.2-alpine"
     pullPolicy: IfNotPresent
   maxmemory: 512mb
   resources:
