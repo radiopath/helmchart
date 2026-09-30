@@ -11,6 +11,10 @@
       "allowedVersions": "<9.2"
     },
     {
+      "matchPackageNames": ["haproxy"],
+      "allowedVersions": "<3.5"
+    },
+    {
       "matchPackageNames": ["golang", "go"],
       "allowedVersions": "<1.27"
     }

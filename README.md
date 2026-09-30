@@ -2,8 +2,9 @@
 
 Helm chart for [radiopath](https://github.com/radiopath/radiopath): web pods
 (`RADIOPATH_WORKERS=0`, behind a Service and a Traefik Ingress), worker pods
-(`RADIOPATH_WORKERS=1`) and a Valkey for the tile cache. Database and DEM
-storage are external.
+(`RADIOPATH_WORKERS=1`) and a Valkey for the tile cache: three nodes with
+Sentinel sidecars (`<release>-valkey-node`) behind HAProxy (`<release>-valkey`),
+which always routes to the current master. Database and DEM storage are external.
 
 `values.yaml` holds the chart defaults; `values-example.yaml` shows the values a
 deployment needs. Copy it to `values.local.yaml` for your own release, which

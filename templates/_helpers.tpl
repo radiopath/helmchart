@@ -43,3 +43,15 @@ app.kubernetes.io/name: {{ .Chart.Name }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 radiopath/serves-web: "true"
 {{- end }}
+
+{{/* Env for the Valkey init.sh and prestop.sh */}}
+{{- define "radiopath.valkeyEnv" -}}
+- name: POD_NAME
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: STS
+  value: {{ .Release.Name }}-valkey-node
+- name: HEADLESS
+  value: {{ .Release.Name }}-valkey-headless.{{ .Release.Namespace }}.svc.cluster.local
+{{- end }}

@@ -1,0 +1,95 @@
+{{- if .Values.valkey.enabled }}
+{{- $hl := printf "%s-valkey-headless.%s.svc.cluster.local" .Release.Name .Release.Namespace -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-valkey
+  labels:
+    {{- include "radiopath.labels" . | nindent 4 }}
+data:
+  # Follows the master the other sentinels report, so a restarted old master
+  # rejoins as replica. Nobody answers (fresh install, all nodes down at once)
+  # = node-0 becomes master.
+  init.sh: |
+    set -eu
+    self="$POD_NAME.$HEADLESS"
+    # Sentinels still naming us = we crashed as master and come back empty;
+    # wait for their failover instead of wiping the replicas.
+    for try in $(seq 30); do
+      master=""
+      for i in 0 1 2; do
+        h="$STS-$i.$HEADLESS"
+        [ "$h" = "$self" ] && continue
+        master=$(timeout 3 valkey-cli -h "$h" -p 26379 --raw sentinel get-master-addr-by-name mymaster 2>/dev/null | head -n1) || true
+        [ -n "$master" ] && break
+      done
+      [ "$master" = "$self" ] || break
+      sleep 1
+    done
+    [ -n "$master" ] || master="$STS-0.$HEADLESS"
+    echo "master: $master"
+    {
+      echo 'save ""'
+      echo "maxmemory {{ .Values.valkey.maxmemory }}"
+      echo "maxmemory-policy allkeys-lru"
+      echo "replica-announce-ip $self"
+      [ "$master" = "$self" ] || echo "replicaof $master 6379"
+    } > /conf/valkey.conf
+    {
+      echo "port 26379"
+      echo "sentinel resolve-hostnames yes"
+      echo "sentinel announce-hostnames yes"
+      echo "sentinel announce-ip $self"
+      echo "sentinel monitor mymaster $master 6379 2"
+      echo "sentinel down-after-milliseconds mymaster 5000"
+      echo "sentinel failover-timeout mymaster 10000"
+    } > /conf/sentinel.conf
+  # Hands the master role off before a drain. Asks the other sentinels: the
+  # local one gets SIGTERM without waiting for this hook.
+  prestop.sh: |
+    valkey-cli info replication | grep -q role:master || exit 0
+    for i in 0 1 2; do
+      h="$STS-$i.$HEADLESS"
+      [ "$h" = "$POD_NAME.$HEADLESS" ] && continue
+      timeout 3 valkey-cli -h "$h" -p 26379 sentinel failover mymaster | grep -q OK && break
+    done
+    for i in $(seq 20); do
+      sleep 1
+      valkey-cli info replication | grep -q role:master || exit 0
+    done
+  haproxy.cfg: |
+    defaults
+      mode tcp
+      timeout connect 3s
+      timeout client 30m
+      timeout server 30m
+      timeout check 500ms
+
+    resolvers k8s
+      parse-resolv-conf
+      hold valid 5s
+
+    frontend health
+      mode http
+      bind :8404
+      monitor-uri /healthz
+      monitor fail if { nbsrv(master) lt 1 }
+
+    frontend valkey
+      bind :6379
+      default_backend master
+
+    backend master
+      option tcp-check
+      tcp-check send PING\r\n
+      tcp-check expect string +PONG
+      tcp-check send info\ replication\r\n
+      tcp-check expect string role:master
+      tcp-check send QUIT\r\n
+      tcp-check expect string +OK
+      # shutdown-sessions: clients must not keep talking to a demoted master
+      default-server check init-state down inter 300ms fall 1 rise 1 on-marked-down shutdown-sessions resolvers k8s resolve-prefer ipv4 init-addr last,libc,none
+      {{- range $i := until 3 }}
+      server node{{ $i }} {{ $.Release.Name }}-valkey-node-{{ $i }}.{{ $hl }}:6379
+      {{- end }}
+{{- end }}

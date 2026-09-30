@@ -1,61 +1,226 @@
 {{- if .Values.valkey.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+{{- $checksum := include (print $.Template.BasePath "/valkey-config.yaml") . | sha256sum -}}
+apiVersion: v1
+kind: Service
 metadata:
-  name: {{ .Release.Name }}-valkey
+  name: {{ .Release.Name }}-valkey-headless
   labels:
     {{- include "radiopath.labels" . | nindent 4 }}
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+  clusterIP: None
+  # init.sh has to reach the sentinels of pods that are not ready yet
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-node") | nindent 4 }}
+  ports:
+    - name: valkey
+      port: 6379
+    - name: sentinel
+      port: 26379
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-valkey-node
+  labels:
+    {{- include "radiopath.labels" . | nindent 4 }}
+spec:
+  # init.sh, prestop.sh and haproxy.cfg assume exactly three nodes
+  replicas: 3
+  serviceName: {{ .Release.Name }}-valkey-headless
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
-      {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey") | nindent 6 }}
+      {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-node") | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey") | nindent 8 }}
+        {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-node") | nindent 8 }}
+      annotations:
+        checksum/config: {{ $checksum }}
     spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . }}
       {{- end }}
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-node") | nindent 14 }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 999
         runAsGroup: 999
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: init
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
+          command: [sh, /scripts/init.sh]
+          env:
+            {{- include "radiopath.valkeyEnv" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
+            - name: scripts
+              mountPath: /scripts
       containers:
         - name: valkey
           image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
           imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
-          args:
-            - --maxmemory
-            - {{ .Values.valkey.maxmemory | quote }}
-            - --maxmemory-policy
-            - allkeys-lru
-            - --save
-            - ""
+          command: [valkey-server, /conf/valkey.conf]
+          env:
+            {{- include "radiopath.valkeyEnv" . | nindent 12 }}
           ports:
             - name: valkey
               containerPort: 6379
           readinessProbe:
             tcpSocket: { port: valkey }
+            initialDelaySeconds: 5
             periodSeconds: 5
           livenessProbe:
             tcpSocket: { port: valkey }
+            initialDelaySeconds: 15
             periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec:
+                command: [sh, /scripts/prestop.sh]
           resources:
             {{- toYaml .Values.valkey.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           volumeMounts:
+            - name: conf
+              mountPath: /conf
+            - name: scripts
+              mountPath: /scripts
+            # A replica writes the master's RDB here during full sync
             - name: data
               mountPath: /data
+        - name: sentinel
+          image: "{{ .Values.valkey.image.repository }}:{{ .Values.valkey.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.image.pullPolicy }}
+          command: [valkey-sentinel, /conf/sentinel.conf]
+          ports:
+            - name: sentinel
+              containerPort: 26379
+          readinessProbe:
+            tcpSocket: { port: sentinel }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.valkey.sentinel.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: conf
+              mountPath: /conf
       volumes:
+        - name: conf
+          emptyDir: {}
         - name: data
           emptyDir: {}
+        - name: scripts
+          configMap:
+            name: {{ .Release.Name }}-valkey
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-valkey-node
+  labels:
+    {{- include "radiopath.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-node") | nindent 6 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-valkey-haproxy
+  labels:
+    {{- include "radiopath.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.valkey.haproxy.replicas }}
+  selector:
+    matchLabels:
+      {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-haproxy") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-haproxy") | nindent 8 }}
+      annotations:
+        checksum/config: {{ $checksum }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          matchLabelKeys:
+            - pod-template-hash
+          labelSelector:
+            matchLabels:
+              {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-haproxy") | nindent 14 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 99
+        runAsGroup: 99
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: haproxy
+          image: "{{ .Values.valkey.haproxy.image.repository }}:{{ .Values.valkey.haproxy.image.tag }}"
+          imagePullPolicy: {{ .Values.valkey.haproxy.image.pullPolicy }}
+          ports:
+            - name: valkey
+              containerPort: 6379
+            - name: health
+              containerPort: 8404
+          # Not ready while no node answers as master
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            periodSeconds: 2
+          livenessProbe:
+            tcpSocket: { port: valkey }
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.valkey.haproxy.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/etc/haproxy
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-valkey
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}-valkey-haproxy
+  labels:
+    {{- include "radiopath.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-haproxy") | nindent 6 }}
 ---
 apiVersion: v1
 kind: Service
@@ -70,5 +235,5 @@ spec:
       port: 6379
       targetPort: valkey
   selector:
-    {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey") | nindent 4 }}
+    {{- include "radiopath.selectorLabels" (dict "root" . "component" "valkey-haproxy") | nindent 4 }}
 {{- end }}

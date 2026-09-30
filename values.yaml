@@ -58,6 +58,9 @@ valkey:
     repository: valkey/valkey
     tag: "9.1.2-alpine"
     pullPolicy: IfNotPresent
+  # Applies to each of the three nodes (StatefulSet, one master, two replicas,
+  # Sentinel sidecars). No persistence: the replicas carry the cache across
+  # node restarts.
   maxmemory: 512mb
   resources:
     requests:
@@ -65,6 +68,27 @@ valkey:
       memory: 64Mi
     limits:
       memory: 620Mi
+  sentinel:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+      limits:
+        memory: 64Mi
+  # Routes the valkey service to whichever node is master, so clients
+  # need no Sentinel support
+  haproxy:
+    replicas: 3
+    image:
+      repository: haproxy
+      tag: "3.4.6-alpine"
+      pullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 192Mi
 
 service:
   port: 80
