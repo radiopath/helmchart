@@ -3,20 +3,12 @@
   "extends": ["config:recommended"],
   "packageRules": [
     {
-      "matchPackageNames": ["postgres", "/postgresql$/"],
-      "allowedVersions": "<19"
-    },
-    {
       "matchPackageNames": ["valkey/valkey", "/valkey$/"],
       "allowedVersions": "<9.2"
     },
     {
       "matchPackageNames": ["haproxy"],
       "allowedVersions": "<3.5"
-    },
-    {
-      "matchPackageNames": ["golang", "go"],
-      "allowedVersions": "<1.27"
     }
   ]
 }
