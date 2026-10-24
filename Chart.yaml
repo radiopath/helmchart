@@ -3,4 +3,3 @@ name: radiopath
 description: Radiopath web and worker pods, HA Valkey tile cache, Traefik ingress. Database and DEM storage are external.
 type: application
 version: 1.1.2
-appVersion: "1.1.2"

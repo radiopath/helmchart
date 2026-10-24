@@ -1,6 +1,6 @@
 {{/* Image tags may carry semver build metadata; "+" is invalid in a label value. */}}
 {{- define "radiopath.version" -}}
-{{- .Values.image.tag | default .Chart.AppVersion | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
+{{- .Values.image.tag | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end }}
 
 {{- define "radiopath.labels" -}}
