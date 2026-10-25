@@ -22,13 +22,15 @@ app.kubernetes.io/component: {{ .component }}
 {{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}
 {{- end }}
 
-{{/* Env block shared by web and worker: values.env, per-component env, Valkey URL, workers. */}}
+{{/* Env block shared by web and worker: values.env, per-component env, mode, workers, Valkey URL. */}}
 {{- define "radiopath.env" -}}
 {{- $env := merge (dict) .component.env .root.Values.env }}
 {{- range $name, $value := $env }}
 - name: {{ $name | quote }}
   value: {{ $value | quote }}
 {{- end }}
+- name: RADIOPATH_MODE
+  value: {{ .mode | quote }}
 - name: RADIOPATH_WORKERS
   value: {{ .workers | quote }}
 {{- if .root.Values.valkey.enabled }}

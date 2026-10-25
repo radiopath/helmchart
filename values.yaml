@@ -21,16 +21,14 @@ env:
 
 web:
   replicas: 2
-  env:
-    # Web pods analyse links and compute HF predictions and maps: about 4 x 39 MB of terrain and canopy tiles,
-    # up to 130 MB of HF data (one month after another, as they are asked for) plus 100 MB.
-    RADIOPATH_DEM_CACHE_TILES: "4"
+  # Web pods (RADIOPATH_MODE=web) serve the app and the API and compute nothing: no datasets, no S3, no /tmp.
+  env: {}
   resources:
     requests:
       cpu: 100m
-      memory: 384Mi
+      memory: 128Mi
     limits:
-      memory: 1Gi
+      memory: 256Mi
 
 worker:
   replicas: 1
@@ -39,17 +37,17 @@ worker:
     minReplicas: 2
     maxReplicas: 6
     targetCPUUtilizationPercentage: 100
-  # Also route Service traffic to worker pods.
+  # Also route Service traffic to worker pods (RADIOPATH_MODE=all instead of worker).
   serveWeb: false
   workers: 1
+  # Worker pods compute coverages, link analyses and HF: 16 x 39 MB of terrain and canopy tiles, up to 130 MB of HF
+  # data (one month after another, as they are asked for) plus 100 MB. The HF data set is downloaded into /tmp.
   env:
     RADIOPATH_DEM_CACHE_TILES: "16"
-    # HF is computed in web pods only, so workers skip the 131 MB download; set it to "hf1" with serveWeb.
-    RADIOPATH_DATASET_HF: ""
   resources:
     requests:
       cpu: "1"
-      memory: 512Mi
+      memory: 768Mi
     limits:
       cpu: "4"
       memory: 2Gi

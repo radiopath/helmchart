@@ -39,7 +39,7 @@ spec:
             - name: metrics
               containerPort: 9090
           env:
-            {{- include "radiopath.env" (dict "root" . "component" .Values.web "workers" 0) | nindent 12 }}
+            {{- include "radiopath.env" (dict "root" . "component" .Values.web "mode" "web" "workers" 0) | nindent 12 }}
           {{- with .Values.envFromSecret }}
           envFrom:
             - secretRef:
@@ -59,14 +59,6 @@ spec:
             {{- toYaml .Values.web.resources | nindent 12 }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          volumeMounts:
-            # The root filesystem is read-only; the HF data set is downloaded from S3 to /tmp at startup.
-            - name: tmp
-              mountPath: /tmp
-      volumes:
-        - name: tmp
-          emptyDir:
-            sizeLimit: 256Mi
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

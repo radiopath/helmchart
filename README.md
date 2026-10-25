@@ -1,12 +1,13 @@
 # radiopath helm chart
 
 Helm chart for [radiopath](https://github.com/radiopath/radiopath): web pods
-(`RADIOPATH_WORKERS=0`, behind a Service and a Traefik Ingress), worker pods
-(`RADIOPATH_WORKERS=1`) and a Valkey for the tile cache: three nodes with
+(`RADIOPATH_MODE=web`, behind a Service and a Traefik Ingress), worker pods
+(`RADIOPATH_MODE=worker`) and a Valkey for the tile cache: three nodes with
 Sentinel sidecars (`<release>-valkey-node`) behind HAProxy (`<release>-valkey`),
 which always routes to the current master. Database and dataset storage (terrain,
-canopy, HF) are external. Chart 2.x needs radiopath 2.0.0 or later (the
-`RADIOPATH_DATASET_*` variables); for radiopath 1.x use chart 1.x.
+canopy, HF) are external. Chart 2.2 needs radiopath 2.1.0 or later
+(`RADIOPATH_MODE`), chart 2.0 and 2.1 radiopath 2.0.0 (the `RADIOPATH_DATASET_*`
+variables); for radiopath 1.x use chart 1.x.
 
 `values.yaml` holds the chart defaults; `values-example.yaml` shows the values a
 deployment needs. Copy it to `values.local.yaml` for your own release, which
@@ -28,16 +29,15 @@ behaviour of the app are in the
 
 ## Workers
 
-Worker pods run one coverage job each, and a computation uses all CPUs up to
-the pod limit. They can be autoscaled on CPU (HPA, needs metrics-server) and
-are spread over nodes; `worker.serveWeb` also routes web traffic to worker
-pods, which is fine for a small setup and slow while a coverage is computing.
-
-HF predictions and maps are computed in web pods. Each one downloads the HF data
-set (131 MB) from the bucket into its `/tmp` (an `emptyDir`, the root filesystem
-is read-only) at startup. Worker pods leave it out (`RADIOPATH_DATASET_HF: ""`);
-with `worker.serveWeb` set `worker.env.RADIOPATH_DATASET_HF: hf1` so they answer
-HF requests too.
+Worker pods compute everything that needs the datasets: one coverage job each
+(a computation uses all CPUs up to the pod limit) and, next to it, link
+analyses and HF predictions and maps, one short job per CPU. They download the
+HF data set (131 MB) from the bucket into their `/tmp` (an `emptyDir`, the root
+filesystem is read-only) at startup. They can be autoscaled on CPU (HPA, needs
+metrics-server) and are spread over nodes. Web pods compute nothing and read no
+datasets; the dataset variables under `env` are ignored there. `worker.serveWeb`
+runs the worker pods in `RADIOPATH_MODE=all` and routes web traffic to them too,
+which is fine for a small setup and slow while a coverage is computing.
 
 ## Ingress
 
