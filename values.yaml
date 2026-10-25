@@ -22,14 +22,15 @@ env:
 web:
   replicas: 2
   env:
-    # Web pods only analyse links: about 4 x 39 MB of terrain and canopy tiles plus 100 MB.
+    # Web pods analyse links and compute HF predictions and maps: about 4 x 39 MB of terrain and canopy tiles,
+    # up to 130 MB of HF data (one month after another, as they are asked for) plus 100 MB.
     RADIOPATH_DEM_CACHE_TILES: "4"
   resources:
     requests:
       cpu: 100m
-      memory: 256Mi
+      memory: 384Mi
     limits:
-      memory: 512Mi
+      memory: 1Gi
 
 worker:
   replicas: 1
@@ -43,6 +44,8 @@ worker:
   workers: 1
   env:
     RADIOPATH_DEM_CACHE_TILES: "16"
+    # HF is computed in web pods only, so workers skip the 131 MB download; set it to "hf1" with serveWeb.
+    RADIOPATH_DATASET_HF: ""
   resources:
     requests:
       cpu: "1"

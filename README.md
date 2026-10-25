@@ -31,6 +31,12 @@ the pod limit. They can be autoscaled on CPU (HPA, needs metrics-server) and
 are spread over nodes; `worker.serveWeb` also routes web traffic to worker
 pods, which is fine for a small setup and slow while a coverage is computing.
 
+HF predictions and maps are computed in web pods. Each one downloads the HF data
+set (131 MB) from the bucket into its `/tmp` (an `emptyDir`, the root filesystem
+is read-only) at startup. Worker pods leave it out (`RADIOPATH_DATASET_HF: ""`);
+with `worker.serveWeb` set `worker.env.RADIOPATH_DATASET_HF: hf1` so they answer
+HF requests too.
+
 ## Ingress
 
 `ingress.hosts` lists every name a release answers on. Setting

@@ -1,5 +1,5 @@
 apiVersion: v2
 name: radiopath
-description: Radiopath web and worker pods, HA Valkey tile cache, Traefik ingress. Database and dataset storage (terrain, canopy) are external.
+description: Radiopath web and worker pods, HA Valkey tile cache, Traefik ingress. Database and dataset storage (terrain, canopy, HF) are external.
 type: application
-version: 2.0.0
+version: 2.1.0
