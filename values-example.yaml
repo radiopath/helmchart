@@ -9,8 +9,8 @@ env:
   RADIOPATH_SMTP_HOST: smtp.example.org
   RADIOPATH_SMTP_USER: radiopath@example.org
   RADIOPATH_MAIL_FROM: radiopath@example.org
-  RADIOPATH_DEM_S3_ENDPOINT: https://s3.example.org
-  RADIOPATH_DEM_S3_BUCKET: radiopath-dem
+  RADIOPATH_DATASET_S3_ENDPOINT: https://s3.example.org
+  RADIOPATH_DATASET_S3_BUCKET: radiopath-datasets
 
 ingress:
   hosts:
