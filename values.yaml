@@ -24,13 +24,14 @@ env:
 web:
   replicas: 2
   env:
-    RADIOPATH_DEM_CACHE_TILES: "8"
+    # Web pods only analyse links: about 4 x 39 MB of terrain and canopy tiles plus 100 MB.
+    RADIOPATH_DEM_CACHE_TILES: "4"
   resources:
     requests:
       cpu: 100m
-      memory: 128Mi
-    limits:
       memory: 256Mi
+    limits:
+      memory: 512Mi
 
 worker:
   replicas: 1
