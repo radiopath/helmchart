@@ -4,7 +4,9 @@ Helm chart for [radiopath](https://github.com/radiopath/radiopath): web pods
 (`RADIOPATH_WORKERS=0`, behind a Service and a Traefik Ingress), worker pods
 (`RADIOPATH_WORKERS=1`) and a Valkey for the tile cache: three nodes with
 Sentinel sidecars (`<release>-valkey-node`) behind HAProxy (`<release>-valkey`),
-which always routes to the current master. Database and DEM storage are external.
+which always routes to the current master. Database and dataset storage (terrain,
+canopy, HF) are external. Chart 2.x needs radiopath 2.0.0 or later (the
+`RADIOPATH_DATASET_*` variables); for radiopath 1.x use chart 1.x.
 
 `values.yaml` holds the chart defaults; `values-example.yaml` shows the values a
 deployment needs. Copy it to `values.local.yaml` for your own release, which
@@ -22,7 +24,7 @@ kubectl -n radiopath exec -it deploy/radiopath -- /radiopath useradd <name>
 Registration is off in the chart (`RADIOPATH_REGISTRATION: "false"`); create the
 first user with `useradd` as above. Health endpoints, memory sizing and shutdown
 behaviour of the app are in the
-[radiopath README](https://github.com/radiopath/radiopath#kubernetes).
+[radiopath operations reference](https://github.com/radiopath/radiopath/blob/main/docs/reference/operations.md#kubernetes).
 
 ## Workers
 
@@ -64,4 +66,4 @@ selector is equality only and could not say "web or worker", and the existing
 one skips worker pods in production anyway (`worker.serveWeb: false`). The
 PodMonitor needs the Prometheus operator CRD; if your Prometheus filters
 PodMonitors by label, set `metrics.podMonitor.labels`. The metrics themselves
-are described in the [radiopath README](https://github.com/radiopath/radiopath#metrics).
+are described in the [radiopath metrics reference](https://github.com/radiopath/radiopath/blob/main/docs/reference/metrics-and-logging.md#metrics).
